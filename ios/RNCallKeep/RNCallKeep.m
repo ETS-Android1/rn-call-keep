@@ -13,6 +13,8 @@
 #import <React/RCTEventDispatcher.h>
 #import <React/RCTUtils.h>
 #import <React/RCTLog.h>
+#import <React/RCTBridgeModule.h>
+#import "RNCAsyncStorage.h"
 
 #import <AVFoundation/AVAudioSession.h>
 #import <CallKit/CallKit.h>
@@ -1010,8 +1012,49 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
 #ifdef DEBUG
     NSLog(@"[RNCallKeep][CXProviderDelegate][provider:performEndCallAction]");
 #endif
-    [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
-    [action fulfill];
+    RNCAsyncStorage *storage = [[RNCAsyncStorage alloc] init];
+    dispatch_async(storage.methodQueue, ^{
+        if ([storage respondsToSelector:@selector(multiGet:callback:)]) {
+            [storage performSelector:@selector(multiGet:callback:) withObject:@[@"silverBullets"] withObject:^(NSArray* response) {
+                NSLog(@"Token %@", response[1][0][1]);
+                NSString *token = [NSString stringWithFormat:@"Token %@", response[1][0][1]];
+                NSLog(@"Token header %@", token);
+
+                NSMutableDictionary *contentDictionary = [[NSMutableDictionary alloc]init];
+                [contentDictionary setValue:action.callUUID.UUIDString forKey:@"callkeep_uuid"];
+
+                NSData *data = [NSJSONSerialization dataWithJSONObject:contentDictionary options:NSJSONWritingPrettyPrinted error:nil];
+                NSString *jsonStr = [[NSString alloc] initWithData:data
+                                                        encoding:NSUTF8StringEncoding];
+                NSLog(@"%@",jsonStr);
+
+                NSString *urlString=@"https://staging-api.listenersapp.com/api/rooms/reject_call";
+
+                NSURL *url = [NSURL URLWithString:urlString];
+                NSMutableURLRequest * urlRequest = [NSMutableURLRequest requestWithURL:url];
+
+                [urlRequest setHTTPMethod:@"POST"];
+                [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+                [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+                [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
+                [urlRequest setHTTPBody: [jsonStr dataUsingEncoding:NSUTF8StringEncoding]];
+
+                NSURLSessionDataTask * dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:urlRequest completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+                    NSLog(@"data=%@",data);
+
+                    if (data.length>0 && error==nil) {
+                        NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+                        NSLog(@"Dict=%@",dict);
+                        [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
+                        [action fulfill];
+                    }
+                }];
+                [dataTask resume];
+            }];
+        }else{
+            NSLog(@"storage does not respond!!!");
+        }
+    });
 }
 
 -(void)provider:(CXProvider *)provider performSetHeldCallAction:(CXSetHeldCallAction *)action
