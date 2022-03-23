@@ -1016,6 +1016,7 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
     dispatch_async(storage.methodQueue, ^{
         if ([storage respondsToSelector:@selector(multiGet:callback:)]) {
             [storage performSelector:@selector(multiGet:callback:) withObject:@[@"silverBullets"] withObject:^(NSArray* response) {
+                BOOL isActive = [RNCallKeep isCallActive: action.callUUID.UUIDString];
                 NSLog(@"Token %@", response[1][0][1]);
                 NSString *token = [NSString stringWithFormat:@"Token %@", response[1][0][1]];
                 NSLog(@"Token header %@", token);
@@ -1027,29 +1028,59 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
                 NSString *jsonStr = [[NSString alloc] initWithData:data
                                                         encoding:NSUTF8StringEncoding];
                 NSLog(@"%@",jsonStr);
+                
+                
+                if (isActive) {
+                    NSLog(@"[RNCallKeep] - https://staging-api.listenersapp.com/api/rooms/stop_call");
+                    
+                    NSString *urlString=@"https://staging-api.listenersapp.com/api/rooms/stop_call";
 
-                NSString *urlString=@"https://staging-api.listenersapp.com/api/rooms/reject_call";
+                    NSURL *url = [NSURL URLWithString:urlString];
+                    NSMutableURLRequest * urlRequest = [NSMutableURLRequest requestWithURL:url];
 
-                NSURL *url = [NSURL URLWithString:urlString];
-                NSMutableURLRequest * urlRequest = [NSMutableURLRequest requestWithURL:url];
+                    [urlRequest setHTTPMethod:@"POST"];
+                    [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+                    [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+                    [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
+                    [urlRequest setHTTPBody: [jsonStr dataUsingEncoding:NSUTF8StringEncoding]];
 
-                [urlRequest setHTTPMethod:@"POST"];
-                [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
-                [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-                [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
-                [urlRequest setHTTPBody: [jsonStr dataUsingEncoding:NSUTF8StringEncoding]];
+                    NSURLSessionDataTask * dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:urlRequest completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+                        NSLog(@"data=%@",data);
 
-                NSURLSessionDataTask * dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:urlRequest completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
-                    NSLog(@"data=%@",data);
+                        if (data.length>0 && error==nil) {
+                            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+                            NSLog(@"Dict=%@",dict);
+                            [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
+                            [action fulfill];
+                        }
+                    }];
+                    [dataTask resume];
+                } else {
+                    NSLog(@"[RNCallKeep] - https://staging-api.listenersapp.com/api/rooms/reject_call");
+                    
+                    NSString *urlString=@"https://staging-api.listenersapp.com/api/rooms/reject_call";
 
-                    if (data.length>0 && error==nil) {
-                        NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
-                        NSLog(@"Dict=%@",dict);
-                        [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
-                        [action fulfill];
-                    }
-                }];
-                [dataTask resume];
+                    NSURL *url = [NSURL URLWithString:urlString];
+                    NSMutableURLRequest * urlRequest = [NSMutableURLRequest requestWithURL:url];
+
+                    [urlRequest setHTTPMethod:@"POST"];
+                    [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+                    [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+                    [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
+                    [urlRequest setHTTPBody: [jsonStr dataUsingEncoding:NSUTF8StringEncoding]];
+
+                    NSURLSessionDataTask * dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:urlRequest completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+                        NSLog(@"data=%@",data);
+
+                        if (data.length>0 && error==nil) {
+                            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+                            NSLog(@"Dict=%@",dict);
+                            [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
+                            [action fulfill];
+                        }
+                    }];
+                    [dataTask resume];
+                }
             }];
         }else{
             NSLog(@"storage does not respond!!!");
