@@ -1,21 +1,21 @@
 {
   "name": "react-native-ck",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "iOS 10 CallKit and Android ConnectionService Framework For React Native",
   "main": "index.js",
   "scripts": {},
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/huynextlevel/react-native-ck.git"
+    "url": "git+https://github.com/huynextlevel/rn-call-keep.git"
   },
   "author": "See AUTHORS file",
   "maintainers": ["See AUTHORS file"],
   "contributors": ["See AUTHORS file"],
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/huynextlevel/react-native-ck/issues"
+    "url": "https://github.com/huynextlevel/rn-call-keep.git/issues"
   },
-  "homepage": "https://github.com/huynextlevel/react-native-ck#readme",
+  "homepage": "https://github.com/huynextlevel/rn-call-keep.git#readme",
   "typings": "./index.d.ts",
   "peerDependencies": {
     "react-native": ">=0.40.0"
