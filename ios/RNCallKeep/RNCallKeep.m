@@ -39,6 +39,7 @@ static NSString *const RNCallKeepProviderReset = @"RNCallKeepProviderReset";
 static NSString *const RNCallKeepCheckReachability = @"RNCallKeepCheckReachability";
 static NSString *const RNCallKeepDidChangeAudioRoute = @"RNCallKeepDidChangeAudioRoute";
 static NSString *const RNCallKeepDidLoadWithEvents = @"RNCallKeepDidLoadWithEvents";
+static NSString *const HostValue = @"TALKER";
 
 @implementation RNCallKeep
 {
@@ -1015,8 +1016,10 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
     RNCAsyncStorage *storage = [[RNCAsyncStorage alloc] init];
     dispatch_async(storage.methodQueue, ^{
         if ([storage respondsToSelector:@selector(multiGet:callback:)]) {
-            [storage performSelector:@selector(multiGet:callback:) withObject:@[@"silverBullets"] withObject:^(NSArray* response) {
+            [storage performSelector:@selector(multiGet:callback:) withObject:@[@"silverBullets", @"isHost"] withObject:^(NSArray* response) {
+                NSLog(@"Asynsc Storage header %@", response[1][1][1]);
                 BOOL isActive = [RNCallKeep isCallActive: action.callUUID.UUIDString];
+                NSString *host = response[1][1][1];
                 NSString *token = [NSString stringWithFormat:@"Token %@", response[1][0][1]];
                 NSLog(@"Token header %@", token);
 
@@ -1056,29 +1059,31 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
                         [dataTask resume];
                     }
                 } else {
-                    NSLog(@"[RNCallKeep] - https://staging-api.listenersapp.com/api/rooms/reject_call");
+                    if ([host isEqualToString:HostValue]) {
+                        NSLog(@"[RNCallKeep] - https://staging-api.listenersapp.com/api/rooms/reject_call");
 
-                    NSString *urlString=@"https://staging-api.listenersapp.com/api/rooms/reject_call";
-                    NSURL *url = [NSURL URLWithString:urlString];
-                    NSMutableURLRequest * urlRequest = [NSMutableURLRequest requestWithURL:url];
+                        NSString *urlString=@"https://staging-api.listenersapp.com/api/rooms/reject_call";
+                        NSURL *url = [NSURL URLWithString:urlString];
+                        NSMutableURLRequest * urlRequest = [NSMutableURLRequest requestWithURL:url];
 
-                    [urlRequest setHTTPMethod:@"POST"];
-                    [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
-                    [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-                    [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
-                    [urlRequest setHTTPBody: [jsonStr dataUsingEncoding:NSUTF8StringEncoding]];
+                        [urlRequest setHTTPMethod:@"POST"];
+                        [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+                        [urlRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+                        [urlRequest setValue:token forHTTPHeaderField:@"Authorization"];
+                        [urlRequest setHTTPBody: [jsonStr dataUsingEncoding:NSUTF8StringEncoding]];
 
-                    NSURLSessionDataTask * dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:urlRequest completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
-                        NSLog(@"data=%@",data);
+                        NSURLSessionDataTask * dataTask = [[NSURLSession sharedSession] dataTaskWithRequest:urlRequest completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
+                            NSLog(@"data=%@",data);
 
-                        if (data.length>0 && error==nil) {
-                            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
-                            NSLog(@"Dict=%@",dict);
-                            [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
-                            [action fulfill];
-                        }
-                    }];
-                    [dataTask resume];
+                            if (data.length>0 && error==nil) {
+                                NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+                                NSLog(@"Dict=%@",dict);
+                                [self sendEventWithNameWrapper:RNCallKeepPerformEndCallAction body:@{ @"callUUID": [action.callUUID.UUIDString lowercaseString] }];
+                                [action fulfill];
+                            }
+                        }];
+                        [dataTask resume];
+                    }
                 }
             }];
         }else{
@@ -1086,6 +1091,7 @@ RCT_EXPORT_METHOD(reportUpdatedCall:(NSString *)uuidString contactIdentifier:(NS
         }
     });
 }
+
 
 -(void)provider:(CXProvider *)provider performSetHeldCallAction:(CXSetHeldCallAction *)action
 {
